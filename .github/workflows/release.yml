@@ -1,0 +1,43 @@
+name: Build Release Binaries
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            bin_name: nulltris-linux
+            artifact: nulltris-linux
+          - os: windows-latest
+            bin_name: nulltris-windows
+            artifact: nulltris-windows.exe
+          - os: macos-13
+            bin_name: nulltris-macos-x86_64
+            artifact: nulltris-macos-x86_64
+          - os: macos-latest
+            bin_name: nulltris-macos-arm64
+            artifact: nulltris-macos-arm64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Build binary
+        run: uv run --with pyinstaller pyinstaller --onefile --name ${{ matrix.bin_name }} main.py
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/${{ matrix.artifact }}
