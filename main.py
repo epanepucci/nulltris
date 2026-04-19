@@ -122,6 +122,7 @@ class Settings:
         self.garbage_rows  = 0
         self.auto_mutate   = False
         self.teleport      = False
+        self.vim_keys      = False
         self.win_w         = INIT_W
         self.win_h         = INIT_H
         self.win_x         = None   # None → let the OS pick
@@ -136,7 +137,8 @@ def load_settings():
         s.show_ghost    = bool(data.get("show_ghost",   s.show_ghost))
         s.garbage_rows  = max(0, min(MAX_GARBAGE, int(data.get("garbage_rows",  s.garbage_rows))))
         s.auto_mutate   = bool(data.get("auto_mutate",  s.auto_mutate))
-        s.teleport      = bool(data.get("teleport",     s.teleport))
+        s.teleport      = bool(data.get("teleport",      s.teleport))
+        s.vim_keys      = bool(data.get("vim_keys",      s.vim_keys))
         s.win_w         = max(300, int(data.get("win_w", s.win_w)))
         s.win_h         = max(300, int(data.get("win_h", s.win_h)))
         if "win_x" in data and "win_y" in data:
@@ -155,6 +157,7 @@ def save_settings(s):
             "garbage_rows":  s.garbage_rows,
             "auto_mutate":   s.auto_mutate,
             "teleport":      s.teleport,
+            "vim_keys":      s.vim_keys,
             "win_w":         s.win_w,
             "win_h":         s.win_h,
         }
@@ -406,13 +409,12 @@ class Game:
                 self._lock()
 
 
-# ── Rendering ──────────────────────────────────────────────
+# ── Renderização ───────────────────────────────────────────
 
 def draw_cell(surf, x, y, color, size, ghost=False):
     rect = pygame.Rect(x + 1, y + 1, size - 2, size - 2)
     if ghost:
         pygame.draw.rect(surf, GHOST, rect)
-        pygame.draw.rect(surf, color, rect, max(1, size // 15))
     else:
         pygame.draw.rect(surf, color, rect)
         light = tuple(min(255, v + 60) for v in color)
@@ -523,12 +525,8 @@ def draw_panel(surf, game, settings, lo, fonts):
 
     if not game.game_over and settings.auto_mutate:
         remaining = 2 - game._mutations_in_window
-        if remaining > 0 and game._height_ok_for_mutate():
-            dot_color = ( 80, 210,  80)
-        elif remaining > 0:
-            dot_color = (180, 140,  40)
-        else:
-            dot_color = ( 55,  55,  68)
+        dot_color = (80, 210, 80) if remaining > 0 and game._height_ok_for_mutate() else \
+                    (180, 140, 40) if remaining > 0 else (55, 55, 68)
         y = label("MUTATE", y, color=dot_color)
         dots = "\u25cf " * remaining + "\u25cb " * (2 - remaining)
         y = value(dots.strip(), y, font_med, color=dot_color)
@@ -556,7 +554,7 @@ def draw_panel(surf, game, settings, lo, fonts):
 def draw_settings_overlay(surf, settings, sel_idx, lo, fonts):
     _, font_med, font_small = fonts
     box_w = 100 + min(310, lo.win_w - 40)
-    box_h = 282
+    box_h = 318 # Aumentado para nova opção
     bx = (lo.win_w - box_w) // 2
     by = (lo.win_h - box_h) // 2
 
@@ -573,10 +571,11 @@ def draw_settings_overlay(surf, settings, sel_idx, lo, fonts):
 
     rows = [
         ("Preview pieces", f"< {settings.preview_count} >"),
-        ("Landing shadow", "ON" if settings.show_ghost    else "OFF"),
+        ("Landing shadow", "ON" if settings.show_ghost   else "OFF"),
         ("Garbage rows",   f"< {settings.garbage_rows} >"),
-        ("Auto-mutate",    "ON" if settings.auto_mutate   else "OFF"),
+        ("Auto-mutate",    "ON" if settings.auto_mutate  else "OFF"),
         ("Teleport",       "ON" if settings.teleport      else "OFF"),
+        ("Use Vim keys",   "ON" if settings.vim_keys      else "OFF"),
     ]
     row_h = 36
     for i, (lbl, val) in enumerate(rows):
@@ -591,15 +590,11 @@ def draw_settings_overlay(surf, settings, sel_idx, lo, fonts):
         surf.blit(lbl_s, (bx + 18, ry + 4))
         surf.blit(val_s,  (bx + box_w - val_s.get_width() - 18, ry + 4))
 
-    if sel_idx == 2:
-        note = font_small.render("takes effect on restart (R)", True, (100, 100, 120))
-        surf.blit(note, (bx + (box_w - note.get_width()) // 2, by + 48 + len(rows) * row_h - 4))
-
     hint = font_small.render("↑↓ select   ←→ change   Esc close", True, GRAY)
     surf.blit(hint, (bx + (box_w - hint.get_width()) // 2, by + box_h - 24))
 
 
-# ── Input handling ─────────────────────────────────────────
+# ── Entrada de Dados (DAS) ─────────────────────────────────
 
 class DAS:
     def __init__(self):
@@ -688,23 +683,23 @@ def main():
                         game.paused   = False
                         save_settings(settings)
                     elif k == pygame.K_UP:
-                        settings_sel = (settings_sel - 1) % 5
+                        settings_sel = (settings_sel - 1) % 6
                     elif k == pygame.K_DOWN:
-                        settings_sel = (settings_sel + 1) % 5
+                        settings_sel = (settings_sel + 1) % 6
                     elif k in (pygame.K_LEFT, pygame.K_RIGHT):
                         delta = 1 if k == pygame.K_RIGHT else -1
                         if settings_sel == 0:
-                            settings.preview_count = max(0, min(MAX_PREVIEW,
-                                                        settings.preview_count + delta))
+                            settings.preview_count = max(0, min(MAX_PREVIEW, settings.preview_count + delta))
                         elif settings_sel == 1:
                             settings.show_ghost = not settings.show_ghost
                         elif settings_sel == 2:
-                            settings.garbage_rows = max(0, min(MAX_GARBAGE,
-                                                        settings.garbage_rows + delta))
+                            settings.garbage_rows = max(0, min(MAX_GARBAGE, settings.garbage_rows + delta))
                         elif settings_sel == 3:
                             settings.auto_mutate = not settings.auto_mutate
-                        else:
+                        elif settings_sel == 4:
                             settings.teleport = not settings.teleport
+                        elif settings_sel == 5:
+                            settings.vim_keys = not settings.vim_keys
 
                 elif k == pygame.K_ESCAPE:
                     settings_open = True
@@ -721,32 +716,39 @@ def main():
                     game.paused = not game.paused
 
                 elif not game.game_over and not game.paused:
-                    if k in (pygame.K_LEFT, pygame.K_RIGHT):
-                        dc = -1 if k == pygame.K_LEFT else 1
-                        game.move(dc)
+                    # Controles Dinâmicos (Vim ou Setas)
+                    if k == pygame.K_LEFT or (settings.vim_keys and k == pygame.K_h):
+                        game.move(-1)
                         das.press(k, now)
-                    elif k in (pygame.K_UP, pygame.K_x):
-                        game.rotate(-1)          # counter-clockwise
+                    elif k == pygame.K_RIGHT or (settings.vim_keys and k == pygame.K_l):
+                        game.move(1)
+                        das.press(k, now)
+                    elif k in (pygame.K_UP, pygame.K_x) or (settings.vim_keys and k == pygame.K_k):
+                        game.rotate(-1)
                     elif k in (pygame.K_z, pygame.K_LCTRL, pygame.K_RCTRL):
-                        game.rotate(1)           # clockwise
+                        game.rotate(1)
                     elif k == pygame.K_SPACE:
                         game.hard_drop()
                     elif k in (pygame.K_c, pygame.K_LSHIFT, pygame.K_RSHIFT):
                         game.hold()
-                    elif k == pygame.K_DOWN:
+                    elif k == pygame.K_DOWN or (settings.vim_keys and k == pygame.K_j):
                         soft_drop_held = True
 
             if event.type == pygame.KEYUP:
                 k = event.key
                 das.release(k)
-                if k == pygame.K_DOWN:
+                if k == pygame.K_DOWN or (settings.vim_keys and k == pygame.K_j):
                     soft_drop_held = False
                     soft_acc = 0
 
+        # Atualização DAS Repetitiva
         if not game.game_over and not game.paused:
             repeat_key = das.tick(now)
             if repeat_key is not None:
-                game.move(-1 if repeat_key == pygame.K_LEFT else 1)
+                if repeat_key == pygame.K_LEFT or (settings.vim_keys and repeat_key == pygame.K_h):
+                    game.move(-1)
+                elif repeat_key == pygame.K_RIGHT or (settings.vim_keys and repeat_key == pygame.K_l):
+                    game.move(1)
 
             if soft_drop_held:
                 soft_acc += dt
@@ -781,7 +783,6 @@ def main():
             draw_settings_overlay(screen, settings, settings_sel, lo, fonts)
         pygame.display.flip()
         clock.tick(FPS)
-
 
 if __name__ == "__main__":
     main()
