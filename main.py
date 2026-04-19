@@ -412,7 +412,7 @@ def draw_cell(surf, x, y, color, size, ghost=False):
     rect = pygame.Rect(x + 1, y + 1, size - 2, size - 2)
     if ghost:
         pygame.draw.rect(surf, GHOST, rect)
-        pygame.draw.rect(surf, color, rect, max(1, size // 15))
+        # pygame.draw.rect(surf, color, rect, max(1, size // 15))
     else:
         pygame.draw.rect(surf, color, rect)
         light = tuple(min(255, v + 60) for v in color)
