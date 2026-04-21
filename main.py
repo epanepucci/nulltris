@@ -537,7 +537,7 @@ def draw_panel(surf, game, settings, lo, fonts):
         dot = "\u25cf" if not game._teleport_done else "\u25cb"
         y = value(dot, y, font_med, color=tp_color)
 
-    hint = font_small.render("Esc: settings", True, (70, 70, 90))
+    hint = font_small.render("Esc: settings  ?: help", True, (70, 70, 90))
     surf.blit(hint, (x, lo.board_y + lo.board_h - hint.get_height()))
 
     if game.paused and not game.game_over:
@@ -549,6 +549,64 @@ def draw_panel(surf, game, settings, lo, fonts):
         surf.blit(s, (x, y + 8))
         s2 = font_small.render("R to restart", True, GRAY)
         surf.blit(s2, (x, y + 8 + s.get_height() + 4))
+
+
+def draw_help_overlay(surf, settings, lo, fonts):
+    _, font_med, font_small = fonts
+    if settings.vim_keys:
+        bindings = [
+            ("Move left",    "← / H"),
+            ("Move right",   "→ / L"),
+            ("Rotate CCW",   "↑ / K / X"),
+            ("Rotate CW",    "Z / Ctrl"),
+            ("Soft drop",    "↓ / J"),
+            ("Hard drop",    "Space"),
+            ("Hold piece",   "C / Shift"),
+            ("Pause",        "P"),
+            ("Restart",      "R"),
+            ("Settings",     "Esc"),
+            ("Help",         "?"),
+        ]
+    else:
+        bindings = [
+            ("Move left",    "←"),
+            ("Move right",   "→"),
+            ("Rotate CCW",   "↑ / X"),
+            ("Rotate CW",    "Z / Ctrl"),
+            ("Soft drop",    "↓"),
+            ("Hard drop",    "Space"),
+            ("Hold piece",   "C / Shift"),
+            ("Pause",        "P"),
+            ("Restart",      "R"),
+            ("Settings",     "Esc"),
+            ("Help",         "?"),
+        ]
+
+    row_h = 28
+    box_w = min(320, lo.win_w - 40)
+    box_h = 48 + len(bindings) * row_h + 28
+    bx = (lo.win_w - box_w) // 2
+    by = (lo.win_h - box_h) // 2
+
+    dim = pygame.Surface((lo.win_w, lo.win_h), pygame.SRCALPHA)
+    dim.fill((0, 0, 0, 160))
+    surf.blit(dim, (0, 0))
+
+    pygame.draw.rect(surf, OVERLAY, (bx, by, box_w, box_h), border_radius=6)
+    pygame.draw.rect(surf, BORDER,  (bx, by, box_w, box_h), 2, border_radius=6)
+
+    title = font_med.render("CONTROLS", True, WHITE)
+    surf.blit(title, (bx + (box_w - title.get_width()) // 2, by + 12))
+    pygame.draw.line(surf, BORDER, (bx + 10, by + 38), (bx + box_w - 10, by + 38))
+
+    for i, (action, key) in enumerate(bindings):
+        ry = by + 48 + i * row_h
+        surf.blit(font_small.render(action, True, GRAY),  (bx + 18, ry + 4))
+        ks = font_small.render(key, True, WHITE)
+        surf.blit(ks, (bx + box_w - ks.get_width() - 18, ry + 4))
+
+    hint = font_small.render("? or Esc to close", True, GRAY)
+    surf.blit(hint, (bx + (box_w - hint.get_width()) // 2, by + box_h - 22))
 
 
 def draw_settings_overlay(surf, settings, sel_idx, lo, fonts):
@@ -645,6 +703,7 @@ def main():
     soft_acc      = 0
     settings_open = False
     settings_sel  = 0
+    help_open     = False
 
     prev_ticks = pygame.time.get_ticks()
 
@@ -671,13 +730,19 @@ def main():
 
             if event.type == pygame.KEYDOWN:
                 k = event.key
+                ch = event.unicode
 
                 if k == pygame.K_q and (pygame.key.get_mods() & pygame.KMOD_CTRL):
                     save_settings(settings)
                     pygame.quit()
                     sys.exit()
 
-                if settings_open:
+                if help_open:
+                    if ch == '?' or k in (pygame.K_ESCAPE, pygame.K_RETURN):
+                        help_open   = False
+                        game.paused = False
+
+                elif settings_open:
                     if k in (pygame.K_ESCAPE, pygame.K_RETURN):
                         settings_open = False
                         game.paused   = False
@@ -705,6 +770,10 @@ def main():
                     settings_open = True
                     game.paused   = True
                     settings_sel  = 0
+
+                elif ch == '?':
+                    help_open   = True
+                    game.paused = True
 
                 elif k == pygame.K_r:
                     game._reset(settings.garbage_rows)
@@ -781,6 +850,8 @@ def main():
         draw_panel(screen, game, settings, lo, fonts)
         if settings_open:
             draw_settings_overlay(screen, settings, settings_sel, lo, fonts)
+        if help_open:
+            draw_help_overlay(screen, settings, lo, fonts)
         pygame.display.flip()
         clock.tick(FPS)
 

@@ -1,16 +1,20 @@
 INSTALL_DIR  := $(HOME)/.local/lib/nulltris
 BIN_DIR      := $(HOME)/.local/bin
 DESKTOP_DIR  := $(HOME)/.local/share/applications
+UV           := $(shell command -v uv)
 
-.PHONY: install uninstall
+.PHONY: run install uninstall
+
+run:
+	uv run python main.py
 
 install:
 	@echo "Installing nulltris to $(INSTALL_DIR)..."
 	mkdir -p $(INSTALL_DIR) $(BIN_DIR) $(DESKTOP_DIR)
 	cp main.py pyproject.toml uv.lock $(INSTALL_DIR)/
 	cd $(INSTALL_DIR) && uv sync --quiet
-	@printf '#!/bin/sh\nexec uv run --project %s python %s/main.py "$$@"\n' \
-		$(INSTALL_DIR) $(INSTALL_DIR) > $(BIN_DIR)/nulltris
+	@printf '#!/bin/sh\nexec %s run --project %s python %s/main.py "$$@"\n' \
+		$(UV) $(INSTALL_DIR) $(INSTALL_DIR) > $(BIN_DIR)/nulltris
 	chmod +x $(BIN_DIR)/nulltris
 	@printf '[Desktop Entry]\nName=Nulltris\nComment=Falling-block puzzle game\nExec=%s/nulltris\nTerminal=false\nType=Application\nCategories=Game;\n' \
 		$(BIN_DIR) > $(DESKTOP_DIR)/nulltris.desktop
